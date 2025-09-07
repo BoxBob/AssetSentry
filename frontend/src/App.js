@@ -1,72 +1,74 @@
 
+
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
 
-// Import the contract ABIs (Application Binary Interface)
-import WhitelistABI from './artifacts/contracts/Whitelist.sol/Whitelist.json';
-import SecurityTokenABI from './artifacts/contracts/SecurityToken.sol/SecurityToken.json';
+// Import ALL FOUR ABIs
+import TokenABI from './artifacts/contracts/AdvancedSecurityToken.sol/AdvancedSecurityToken.json';
+import RegistryABI from './artifacts/contracts/ComplianceRegistry.sol/ComplianceRegistry.json';
+import KycRuleABI from './artifacts/contracts/rules/KycRule.sol/KycRule.json';
+import LockupRuleABI from './artifacts/contracts/rules/LockupRule.sol/LockupRule.json';
 
-// Import our components
 import WalletConnect from './components/WalletConnect';
 import AdminPage from './pages/AdminPage';
 import InvestorPage from './pages/InvestorPage';
 
-// --- !!! UPDATE THESE ADDRESSES AFTER YOU DEPLOY !!! ---
-const WHITELIST_CONTRACT_ADDRESS = "0x...YOUR_WHITELIST_ADDRESS";
-const TOKEN_CONTRACT_ADDRESS = "0x...YOUR_TOKEN_ADDRESS";
+// --- !!! UPDATE ALL ADDRESSES AFTER DEPLOYMENT !!! ---
+const TOKEN_ADDRESS = "0x...YOUR_TOKEN_ADDRESS";
+const REGISTRY_ADDRESS = "0x...YOUR_REGISTRY_ADDRESS";
+const KYC_RULE_ADDRESS = "0x...YOUR_KYC_RULE_ADDRESS";
+const LOCKUP_RULE_ADDRESS = "0x...YOUR_LOCKUP_RULE_ADDRESS";
 
 function App() {
   // Blockchain connection state
-  const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [account, setAccount] = useState(null);
     
-  // Contract instances
-  const [whitelistContract, setWhitelistContract] = useState(null);
+  // Contract instances - We need all four!
   const [tokenContract, setTokenContract] = useState(null);
+  const [registryContract, setRegistryContract] = useState(null);
+  const [kycContract, setKycContract] = useState(null);
+  const [lockupContract, setLockupContract] = useState(null);
 
-  // This function sets up the contract instances once the signer is available
   const setupContracts = (currentSigner) => {
     if (!currentSigner) return;
 
-    const wlContract = new ethers.Contract(WHITELIST_CONTRACT_ADDRESS, WhitelistABI.abi, currentSigner);
-    const tkContract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, SecurityTokenABI.abi, currentSigner);
-
-    setWhitelistContract(wlContract);
-    setTokenContract(tkContract);
+    setTokenContract(new ethers.Contract(TOKEN_ADDRESS, TokenABI.abi, currentSigner));
+    setRegistryContract(new ethers.Contract(REGISTRY_ADDRESS, RegistryABI.abi, currentSigner));
+    setKycContract(new ethers.Contract(KYC_RULE_ADDRESS, KycRuleABI.abi, currentSigner));
+    setLockupContract(new ethers.Contract(LOCKUP_RULE_ADDRESS, LockupRuleABI.abi, currentSigner));
   };
 
-  // We pass 'setSigner' to WalletConnect, and when it changes, we trigger setupContracts
   const handleSetSigner = (newSigner) => {
     setSigner(newSigner);
+    setAccount(newSigner.address); // Assuming signer has address (use provider to get it if not)
     setupContracts(newSigner);
   };
 
+  // This logic snippet assumes you get the signer address correctly into 'account'
+  // Simplified WalletConnect may need tweaking to pass the address back up.
+
   return (
     <div className="App">
-      <h1>Security Token (TokenF Clone) Portal</h1>
-      <WalletConnect 
-        setProvider={setProvider} 
-        setSigner={handleSetSigner} 
-        setAccount={setAccount} 
-      />
+      <h1>Advanced Security Token Portal (Modular)</h1>
+      <WalletConnect setSigner={handleSetSigner} setAccount={setAccount} /> {/* Simplified props */}
       <hr />
             
-      {/* We only render the pages if contracts are loaded */}
-      {whitelistContract && tokenContract ? (
+      {tokenContract && kycContract && lockupContract ? (
         <div style={{ display: 'flex', justifyContent: 'space-around' }}>
           <AdminPage 
-            whitelistContract={whitelistContract} 
+            kycContract={kycContract} 
             tokenContract={tokenContract} 
+            lockupContract={lockupContract}
           />
           <InvestorPage 
             tokenContract={tokenContract} 
-            whitelistContract={whitelistContract} 
+            kycContract={kycContract} // Pass the KYC contract for status check
             currentUser={account} 
           />
         </div>
       ) : (
-        <p>Please connect your wallet to interact with the application.</p>
+        <p>Please connect your wallet.</p>
       )}
     </div>
   );

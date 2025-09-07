@@ -1,84 +1,109 @@
 
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
-function AdminPage({ whitelistContract, tokenContract }) {
+function AdminPage({ kycContract, tokenContract, lockupContract }) {
   const [wlAddress, setWlAddress] = useState("");
   const [mintAddress, setMintAddress] = useState("");
   const [mintAmount, setMintAmount] = useState("");
+  const [lockupDate, setLockupDate] = useState("");
+  const [currentLockup, setCurrentLockup] = useState("");
   const [status, setStatus] = useState("Admin Actions");
 
-  // Whitelist Action
-  const handleWhitelist = async () => {
-    if (!ethers.isAddress(wlAddress)) {
-      setStatus("Error: Invalid address for whitelist");
-      return;
-    }
+  // Fetch the current lockup date on load
+  useEffect(() => {
+    const fetchLockup = async () => {
+      if (lockupContract) {
+        const timestamp = await lockupContract.lockupEndDate();
+        const date = new Date(Number(timestamp) * 1000);
+        setCurrentLockup(date.toLocaleString());
+      }
+    };
+    fetchLockup();
+  }, [lockupContract]);
+
+  // Whitelist Action - talks to the KYC Contract
+  const handleAddKyc = async () => {
+    setStatus("Processing KYC Tx...");
     try {
-      setStatus("Processing Whitelist Tx...");
-      const tx = await whitelistContract.addAddress(wlAddress);
-      await tx.wait(); // Wait for the transaction to be mined
-      setStatus(`Success: ${wlAddress} has been whitelisted!`);
-      setWlAddress("");
+      const tx = await kycContract.addKycAddress(wlAddress);
+      await tx.wait();
+      setStatus(`Success: ${wlAddress} added to KYC list.`);
     } catch (err) {
-      console.error(err);
       setStatus(`Error: ${err.reason || err.message}`);
     }
   };
 
-  // Minting Action
+  // Minting Action - talks to the Token Contract
   const handleMint = async () => {
-     if (!ethers.isAddress(mintAddress)) {
-      setStatus("Error: Invalid address for minting");
-      return;
-    }
+     setStatus("Processing Mint Tx...");
     try {
-      setStatus("Processing Mint Tx...");
-      // We must convert the token amount to the correct decimal format (18 decimals for ERC20)
       const formattedAmount = ethers.parseUnits(mintAmount, 18);
-
       const tx = await tokenContract.mint(mintAddress, formattedAmount);
       await tx.wait();
       setStatus(`Success: Minted ${mintAmount} tokens to ${mintAddress}`);
-      setMintAddress("");
-      setMintAmount("");
     } catch (err) {
-      console.error(err);
+      setStatus(`Error: ${err.reason || err.message}`);
+    }
+  };
+
+  // New Action - talks to the Lockup Contract
+  const handleSetLockup = async () => {
+    setStatus("Updating Lockup Date...");
+    try {
+      // Convert user-friendly date string to Unix timestamp
+      const newTimestamp = Math.floor(new Date(lockupDate).getTime() / 1000);
+      if (isNaN(newTimestamp)) {
+        setStatus("Error: Invalid date format");
+        return;
+      }
+
+      const tx = await lockupContract.setLockupEndDate(newTimestamp);
+      await tx.wait();
+      setStatus(`Success: Lockup date updated.`);
+      // Refresh the display
+      const timestamp = await lockupContract.lockupEndDate();
+      const date = new Date(Number(timestamp) * 1000);
+      setCurrentLockup(date.toLocaleString());
+    } catch (err) {
       setStatus(`Error: ${err.reason || err.message}`);
     }
   };
 
   return (
     <div style={{ border: '1px solid blue', padding: '10px', width: '45%' }}>
-      <h2>Admin Panel (Owner Only)</h2>
+      <h2>Modular Admin Panel</h2>
       <p style={{ background: '#f0f0f0', padding: '5px' }}>Status: {status}</p>
 
       <div>
-        <h4>1. Whitelist Address</h4>
+        <h4>1. Add to KYC (KycRule Contract)</h4>
         <input 
           type="text" 
-          placeholder="Address to whitelist (0x...)"
+          placeholder="Address to verify (0x...)"
           value={wlAddress}
           onChange={(e) => setWlAddress(e.target.value)}
         />
-        <button onClick={handleWhitelist}>Whitelist</button>
+        <button onClick={handleAddKyc}>Add KYC</button>
       </div>
       <hr />
       <div>
-        <h4>2. Mint New Tokens</h4>
-        <input 
-          type="text" 
-          placeholder="Address to receive tokens (0x...)"
-          value={mintAddress}
-          onChange={(e) => setMintAddress(e.target.value)}
-        />
-        <input 
-          type="text" 
-          placeholder="Amount (e.g., 100)"
-          value={mintAmount}
-          onChange={(e) => setMintAmount(e.target.value)}
-        />
+        <h4>2. Mint Tokens (Token Contract)</h4>
+        {/* Minting Inputs */}
+        <input type="text" placeholder="Recipient Address" value={mintAddress} onChange={(e) => setMintAddress(e.target.value)} />
+        <input type="text" placeholder="Amount" value={mintAmount} onChange={(e) => setMintAmount(e.target.value)} />
         <button onClick={handleMint}>Mint Tokens</button>
+      </div>
+      <hr />
+      <div>
+        <h4>3. Manage Lockup (LockupRule Contract)</h4>
+        <p>Current Lockup Ends: <strong>{currentLockup}</strong></p>
+        <input 
+          type="datetime-local" 
+          value={lockupDate}
+          onChange={(e) => setLockupDate(e.target.value)}
+        />
+        <button onClick={handleSetLockup}>Update Lockup</button>
       </div>
     </div>
   );
