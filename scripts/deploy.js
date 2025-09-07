@@ -1,15 +1,22 @@
-const { ethers } = require("hardhat");
+
+const hre = require("hardhat");
 
 async function main() {
-  const Whitelist = await ethers.getContractFactory("Whitelist");
+  // 1. Deploy the Whitelist contract first
+  const Whitelist = await hre.ethers.getContractFactory("Whitelist");
   const whitelist = await Whitelist.deploy();
-  await whitelist.deployed();
-  console.log("Whitelist deployed to:", whitelist.address);
+  await whitelist.waitForDeployment();
+  const whitelistAddress = whitelist.target;
 
-  const SecurityToken = await ethers.getContractFactory("SecurityToken");
-  const securityToken = await SecurityToken.deploy(whitelist.address);
-  await securityToken.deployed();
-  console.log("SecurityToken deployed to:", securityToken.address);
+  console.log(`Whitelist contract deployed to: ${whitelistAddress}`);
+
+  // 2. Deploy the SecurityToken, passing the Whitelist address to its constructor
+  const SecurityToken = await hre.ethers.getContractFactory("SecurityToken");
+  const securityToken = await SecurityToken.deploy(whitelistAddress);
+  await securityToken.waitForDeployment();
+  const tokenAddress = securityToken.target;
+
+  console.log(`SecurityToken contract deployed to: ${tokenAddress}`);
 }
 
 main().catch((error) => {
